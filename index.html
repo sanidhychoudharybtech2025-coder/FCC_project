@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LELMS — Laboratory Equipment Lifecycle & Maintenance System</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <div class="brand-block">
+      <h1>LELMS Full-Stack Portal</h1>
+      <small>Module A (Inventory) &bull; Module B (Issue Log) &bull; Module C (Work Orders)</small>
+    </div>
+    <nav>
+      <button class="nav-btn active" onclick="switchTab('inventory')">Inventory</button>
+      <button class="nav-btn" onclick="switchTab('issues')">Issue Log &amp; Progress</button>
+      <button class="nav-btn" onclick="switchTab('workorders')">Work Orders &amp; Progress</button>
+      <button class="nav-btn" onclick="switchTab('admin')">Admin Login / Controls</button>
+      <span id="adminBadge" class="admin-badge" style="display:none;">Admin Mode Active</span>
+    </nav>
+  </header>
+
+  <div class="status-banner">
+    <span id="systemStatusText">Connecting to LELMS Node.js + MongoDB Server...</span>
+    <span id="dbEngineBadge">Storage: Checking...</span>
+  </div>
+
+  <main>
+    <!-- Live KPI Summary -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <span>Total Equipment Units</span>
+        <strong id="kpiTotalUnits">0</strong>
+      </div>
+      <div class="kpi-card">
+        <span>Available Units</span>
+        <strong id="kpiAvailableUnits">0</strong>
+      </div>
+      <div class="kpi-card">
+        <span>Active / Total Issue Logs</span>
+        <strong id="kpiIssueCount">0</strong>
+      </div>
+      <div class="kpi-card">
+        <span>Open / Total Work Orders</span>
+        <strong id="kpiWoCount">0</strong>
+      </div>
+    </div>
+
+    <!-- TAB 1: INVENTORY (MODULE A) -->
+    <div id="tab-inventory" class="tab-panel active">
+      <div class="workspace-grid two-col">
+        <section>
+          <div class="panel-header">
+            <h2>Add Equipment Unit (Module A)</h2>
+          </div>
+          <form id="addUnitForm">
+            <div>
+              <label for="unitTag">Asset Tag (AST-XXX-000)</label>
+              <input type="text" id="unitTag" required pattern="^AST-[A-Z]{3,5}-[0-9]{3}$" placeholder="AST-ECE-005">
+            </div>
+            <div>
+              <label for="unitSerial">Serial Number</label>
+              <input type="text" id="unitSerial" required placeholder="SN-KEY-8821X">
+            </div>
+            <div>
+              <label for="unitModel">Equipment Model</label>
+              <select id="unitModel" required>
+                <option value="InfiniiVision DSOX3024T">Keysight InfiniiVision DSOX3024T</option>
+                <option value="Instron 5967 Dual Column UTM">Instron 5967 Dual Column UTM</option>
+                <option value="NanoDrop OneC UV-Vis">Thermo NanoDrop OneC UV-Vis</option>
+                <option value="EDU36311A Triple DC Supply">Keysight EDU36311A Triple DC Supply</option>
+              </select>
+            </div>
+            <div>
+              <label for="unitLab">Laboratory</label>
+              <select id="unitLab" required>
+                <option value="RF & Signal Processing Lab">RF &amp; Signal Processing Lab (A-204)</option>
+                <option value="Embedded Systems Lab">Embedded Systems Lab (A-105)</option>
+                <option value="Strength of Materials Lab">Strength of Materials Lab (B-002)</option>
+                <option value="Molecular Genomics Lab">Molecular Genomics Lab (C-301)</option>
+              </select>
+            </div>
+            <button type="submit" class="primary-btn">Register Unit in Inventory</button>
+          </form>
+        </section>
+
+        <article>
+          <div class="panel-header">
+            <h2>Equipment Unit Inventory Register</h2>
+            <div class="admin-toolbar admin-only" style="display:none;">
+              <button class="danger-btn" onclick="adminResetDemo()">Reset Default Seed Data</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Asset Tag</th>
+                  <th>Serial No</th>
+                  <th>Model</th>
+                  <th>Laboratory</th>
+                  <th>Usage Hrs</th>
+                  <th>Status</th>
+                  <th class="admin-only" style="display:none;">Admin Action</th>
+                </tr>
+              </thead>
+              <tbody id="inventoryTableBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <!-- TAB 2: ISSUE LOG & PROGRESS TRACKER (MODULE B) -->
+    <div id="tab-issues" class="tab-panel">
+      <div class="workspace-grid two-col">
+        <section>
+          <div class="panel-header">
+            <h2>Request / Issue Equipment (Module B)</h2>
+          </div>
+          <form id="issueForm">
+            <div>
+              <label for="issueAssetTag">Select Equipment Asset Tag</label>
+              <select id="issueAssetTag" required></select>
+            </div>
+            <div>
+              <label for="borrowerName">Borrower Name</label>
+              <input type="text" id="borrowerName" required placeholder="Aarav Sharma (2024ECE101)">
+            </div>
+            <div>
+              <label for="borrowerEmail">Borrower Institutional Email</label>
+              <input type="email" id="borrowerEmail" required placeholder="aarav.s@student.inst.edu">
+            </div>
+            <div>
+              <label for="expectedReturn">Expected Return Date</label>
+              <input type="date" id="expectedReturn" required>
+            </div>
+            <div>
+              <label for="issuePurpose">Experiment Purpose (XSS Sanitized)</label>
+              <textarea id="issuePurpose" rows="3" required minlength="5" maxlength="200" placeholder="5G microstrip antenna return-loss test"></textarea>
+            </div>
+            <button type="submit" class="primary-btn">Submit Issue Request</button>
+          </form>
+        </section>
+
+        <article>
+          <div class="panel-header">
+            <h2>Equipment Issue Log &amp; Live Progress Tracker</h2>
+            <div class="admin-toolbar admin-only" style="display:none;">
+              <button class="danger-btn" onclick="adminClearCollection('issues')">Clear All Issue Requests</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Issue ID</th>
+                  <th>Asset Tag</th>
+                  <th>Borrower</th>
+                  <th>Purpose</th>
+                  <th>Expected Return</th>
+                  <th>Work / Issue Progress</th>
+                  <th>Action / Advance</th>
+                </tr>
+              </thead>
+              <tbody id="issueTableBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <!-- TAB 3: WORK ORDERS & PROGRESS TRACKER (MODULE C) -->
+    <div id="tab-workorders" class="tab-panel">
+      <div class="workspace-grid two-col">
+        <section>
+          <div class="panel-header">
+            <h2>Log Maintenance / Calibration WO (Module C)</h2>
+          </div>
+          <form id="woForm">
+            <div>
+              <label for="woAssetTag">Equipment Asset Tag</label>
+              <select id="woAssetTag" required></select>
+            </div>
+            <div>
+              <label for="woType">Work Order Type (EER E2 Subtype)</label>
+              <select id="woType" required>
+                <option value="preventive">Preventive Maintenance</option>
+                <option value="corrective">Corrective Repair</option>
+                <option value="calibration">Calibration Verification</option>
+              </select>
+            </div>
+            <div>
+              <label for="woAssignee">Assigned Technician / Vendor</label>
+              <input type="text" id="woAssignee" required placeholder="Ramesh Kulkarni (RF Tech)">
+            </div>
+            <div>
+              <label for="woCost">Estimated Service &amp; Parts Cost (INR)</label>
+              <input type="number" id="woCost" min="0" step="100" value="2500" required>
+            </div>
+            <div>
+              <label for="woRemarks">Fault / Checklist / Certificate Details</label>
+              <textarea id="woRemarks" rows="3" required placeholder="Replace 50-Ohm BNC input attenuator"></textarea>
+            </div>
+            <button type="submit" class="primary-btn">Create Work Order</button>
+          </form>
+        </section>
+
+        <article>
+          <div class="panel-header">
+            <h2>Work Orders &amp; Live Completion Progress</h2>
+            <div class="admin-toolbar admin-only" style="display:none;">
+              <button class="danger-btn" onclick="adminClearCollection('workorders')">Clear All Work Orders</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>WO ID</th>
+                  <th>Asset Tag</th>
+                  <th>Type</th>
+                  <th>Assignee</th>
+                  <th>Cost</th>
+                  <th>Completion Progress</th>
+                  <th>Action / Advance</th>
+                </tr>
+              </thead>
+              <tbody id="woTableBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <!-- TAB 4: ADMIN LOGIN & CONTROL PANEL (UNIT 6) -->
+    <div id="tab-admin" class="tab-panel">
+      <div class="workspace-grid two-col">
+        <section>
+          <div class="panel-header">
+            <h2>Administrator Authentication (Unit 6)</h2>
+          </div>
+          <form id="adminLoginForm">
+            <div>
+              <label for="adminEmail">Admin Email</label>
+              <input type="email" id="adminEmail" value="admin@inst.edu" required>
+            </div>
+            <div>
+              <label for="adminPassword">Admin Password</label>
+              <input type="password" id="adminPassword" value="admin123" required>
+            </div>
+            <button type="submit" class="primary-btn">Login as Administrator</button>
+          </form>
+          <div style="margin-top: 1rem;">
+            <button id="logoutBtn" class="danger-btn" style="display:none; width:100%;" onclick="logoutAdmin()">Logout Admin Session</button>
+          </div>
+        </section>
+
+        <article>
+          <div class="panel-header">
+            <h2>Admin Bulk Maintenance &amp; Database Controls</h2>
+          </div>
+          <p style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--muted);">
+            Default Admin Credentials: <strong>admin@inst.edu</strong> / <strong>admin123</strong>.
+            Once logged in, you can advance or delete individual items in any tab, or use the bulk controls below.
+          </p>
+          <div class="admin-toolbar" id="adminBulkControls" style="display:none; gap: 0.75rem;">
+            <button class="danger-btn" onclick="adminClearCollection('issues')">Clear All Issue Requests</button>
+            <button class="danger-btn" onclick="adminClearCollection('workorders')">Clear All Work Orders</button>
+            <button class="primary-btn" onclick="adminResetDemo()">Restore Default Seed Data</button>
+          </div>
+          <p id="adminLockNotice" style="color: var(--danger); font-weight: 600; font-size: 0.88rem;">
+            Please log in on the left to unlock Clear &amp; Delete controls.
+          </p>
+        </article>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <small>Laboratory Equipment Lifecycle &amp; Maintenance System (HTML5 + CSS3 + Node.js + MongoDB)</small>
+  </footer>
+
+  <script>
+    const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:4000' : '';
+    let isAdmin = false;
+
+    // Local fallback state if user opens index.html without starting server.js
+    let appState = {
+      storageMode: 'Local Browser Memory (Start node server.js for MongoDB)',
+      inventory: [
+        { asset_tag: 'AST-ECE-001', serial_no: 'SN-KEY-9901A', model_name: 'InfiniiVision DSOX3024T', lab_name: 'RF & Signal Processing Lab', total_usage_hours: 480.5, status: 'available' },
+        { asset_tag: 'AST-ECE-002', serial_no: 'SN-KEY-9901B', model_name: 'InfiniiVision DSOX3024T', lab_name: 'Embedded Systems Lab', total_usage_hours: 615.0, status: 'issued' },
+        { asset_tag: 'AST-MECH-001', serial_no: 'SN-INS-5967A', model_name: 'Instron 5967 Dual Column UTM', lab_name: 'Strength of Materials Lab', total_usage_hours: 940.0, status: 'under maintenance' },
+        { asset_tag: 'AST-BIO-001', serial_no: 'SN-THM-ND01A', model_name: 'NanoDrop OneC UV-Vis', lab_name: 'Molecular Genomics Lab', total_usage_hours: 320.0, status: 'available' }
+      ],
+      issues: [
+        { issue_id: 'ISS-101', asset_tag: 'AST-ECE-001', borrower_name: 'Aarav Sharma', borrower_email: 'aarav.s@student.inst.edu', expected_return_date: '2026-10-22', purpose: '5G antenna return-loss measurement', stage: 3, status_label: 'Returned (100%)' },
+        { issue_id: 'ISS-102', asset_tag: 'AST-ECE-002', borrower_name: 'Priya Verma', borrower_email: 'priya.v@student.inst.edu', expected_return_date: '2026-10-25', purpose: 'MOSFET switching transient test', stage: 2, status_label: 'In Use / Issued (66%)' }
+      ],
+      workOrders: [
+        { wo_id: 'WO-501', asset_tag: 'AST-ECE-001', wo_type: 'preventive', assignee: 'Ramesh Kulkarni', service_cost: 2500, remarks: 'Routine 500-hr preventive servicing', stage: 3, wo_status: 'completed' },
+        { wo_id: 'WO-502', asset_tag: 'AST-MECH-001', wo_type: 'corrective', assignee: 'Anita Deshmukh', service_cost: 15000, remarks: 'Replace 50kN load-cell protection fuse', stage: 2, wo_status: 'in progress' }
+      ]
+    };
+
+    function sanitize(str) {
+      return String(str || '').replace(/[<>"'&\\/]/g, '').trim();
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-' + tabName).classList.add('active');
+      const idx = { inventory: 0, issues: 1, workorders: 2, admin: 3 }[tabName];
+      document.querySelectorAll('.nav-btn')[idx].classList.add('active');
+    }
+
+    async function loadStateFromServer() {
+      try {
+        const res = await fetch(API_BASE + '/api/state');
+        if (!res.ok) throw new Error('Server unreachable');
+        appState = await res.json();
+        document.getElementById('systemStatusText').textContent = 'Connected to Node.js Backend API (Live Sync Active)';
+        document.getElementById('dbEngineBadge').textContent = 'Storage: ' + appState.storageMode;
+      } catch (err) {
+        document.getElementById('systemStatusText').textContent = 'Running in Standalone Local Mode (Run "node server.js" for MongoDB sync)';
+        document.getElementById('dbEngineBadge').textContent = 'Storage: Browser Memory Fallback';
+      }
+      renderAll();
+    }
+
+    function renderAll() {
+      // KPIs
+      document.getElementById('kpiTotalUnits').textContent = appState.inventory.length;
+      document.getElementById('kpiAvailableUnits').textContent =
+        appState.inventory.filter(u => u.status === 'available').length;
+      const activeIssues = appState.issues.filter(i => i.stage < 3).length;
+      document.getElementById('kpiIssueCount').textContent = `${activeIssues} / ${appState.issues.length}`;
+      const openWos = appState.workOrders.filter(w => w.stage < 3).length;
+      document.getElementById('kpiWoCount').textContent = `${openWos} / ${appState.workOrders.length}`;
+
+      // Populate asset tag dropdowns
+      const issueSelect = document.getElementById('issueAssetTag');
+      const woSelect = document.getElementById('woAssetTag');
+      issueSelect.innerHTML = '';
+      woSelect.innerHTML = '';
+      appState.inventory.forEach(u => {
+        const opt1 = document.createElement('option');
+        opt1.value = u.asset_tag;
+        opt1.textContent = `${u.asset_tag} — ${u.model_name} (${u.status})`;
+        issueSelect.appendChild(opt1);
+
+        const opt2 = opt1.cloneNode(true);
+        woSelect.appendChild(opt2);
+      });
+
+      // Render Inventory Table
+      const invBody = document.getElementById('inventoryTableBody');
+      invBody.innerHTML = appState.inventory.map(u => {
+        const pillClass = u.status.replace(/\s+/g, '-');
+        return `<tr>
+          <td><strong>${u.asset_tag}</strong></td>
+          <td>${u.serial_no}</td>
+          <td>${u.model_name}</td>
+          <td>${u.lab_name}</td>
+          <td>${Number(u.total_usage_hours).toFixed(1)} hrs</td>
+          <td><span class="pill ${pillClass}">${u.status}</span></td>
+          <td class="admin-only" style="display:${isAdmin ? 'table-cell' : 'none'};">
+            <button class="danger-btn" onclick="deleteItem('inventory', '${u.asset_tag}')">Delete</button>
+          </td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="7">No equipment units in inventory.</td></tr>';
+
+      // Render Issues Table with 3-Stage Progress Bar
+      const issueBody = document.getElementById('issueTableBody');
+      issueBody.innerHTML = appState.issues.map(i => {
+        const pct = i.stage === 1 ? 33 : (i.stage === 2 ? 66 : 100);
+        const stageText = i.stage === 1
+          ? 'Stage 1/3: Requested (33%)'
+          : (i.stage === 2 ? 'Stage 2/3: Issued & In Use (66%)' : 'Stage 3/3: Returned & Verified (100%)');
+        return `<tr>
+          <td><strong>${i.issue_id}</strong></td>
+          <td>${i.asset_tag}</td>
+          <td>${i.borrower_name}<br><small style="color:var(--muted)">${i.borrower_email}</small></td>
+          <td>${i.purpose}</td>
+          <td>${i.expected_return_date}</td>
+          <td>
+            <div class="progress-track">
+              <div class="progress-fill ${i.stage === 3 ? 'done' : ''}" style="width:${pct}%"></div>
+            </div>
+            <div class="progress-caption">${stageText}</div>
+          </td>
+          <td>
+            ${i.stage < 3 ? `<button class="action-btn" onclick="advanceStage('issues', '${i.issue_id}')">Next Stage &rarr;</button>` : '<span class="pill completed">Done</span>'}
+            ${isAdmin ? `<button class="danger-btn" onclick="deleteItem('issues', '${i.issue_id}')">Clear</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="7">No issue requests recorded.</td></tr>';
+
+      // Render Work Orders Table with 3-Stage Progress Bar
+      const woBody = document.getElementById('woTableBody');
+      woBody.innerHTML = appState.workOrders.map(w => {
+        const pct = w.stage === 1 ? 33 : (w.stage === 2 ? 66 : 100);
+        const stageText = w.stage === 1
+          ? 'Stage 1/3: Open / Queued (33%)'
+          : (w.stage === 2 ? 'Stage 2/3: In Progress (66%)' : 'Stage 3/3: Completed (100%)');
+        return `<tr>
+          <td><strong>${w.wo_id}</strong></td>
+          <td>${w.asset_tag}</td>
+          <td><span class="pill ${w.wo_status.replace(/\s+/g, '-')}">${w.wo_type}</span></td>
+          <td>${w.assignee}</td>
+          <td>₹${Number(w.service_cost).toLocaleString()}</td>
+          <td>
+            <div class="progress-track">
+              <div class="progress-fill ${w.stage === 3 ? 'done' : ''}" style="width:${pct}%"></div>
+            </div>
+            <div class="progress-caption">${stageText} — ${w.remarks}</div>
+          </td>
+          <td>
+            ${w.stage < 3 ? `<button class="action-btn" onclick="advanceStage('workorders', '${w.wo_id}')">Advance Work &rarr;</button>` : '<span class="pill completed">Completed</span>'}
+            ${isAdmin ? `<button class="danger-btn" onclick="deleteItem('workorders', '${w.wo_id}')">Clear</button>` : ''}
+          </td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="7">No work orders active.</td></tr>';
+
+      // Toggle Admin UI visibility
+      document.querySelectorAll('.admin-only').forEach(el => {
+        el.style.display = isAdmin ? (el.tagName === 'TH' || el.tagName === 'TD' ? 'table-cell' : 'flex') : 'none';
+      });
+      document.getElementById('adminBadge').style.display = isAdmin ? 'inline-block' : 'none';
+      document.getElementById('adminBulkControls').style.display = isAdmin ? 'flex' : 'none';
+      document.getElementById('logoutBtn').style.display = isAdmin ? 'block' : 'none';
+      document.getElementById('adminLockNotice').style.display = isAdmin ? 'none' : 'block';
+    }
+
+    // Form 1: Add Equipment Unit
+    document.getElementById('addUnitForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newUnit = {
+        asset_tag: sanitize(document.getElementById('unitTag').value),
+        serial_no: sanitize(document.getElementById('unitSerial').value),
+        model_name: sanitize(document.getElementById('unitModel').value),
+        lab_name: sanitize(document.getElementById('unitLab').value),
+        total_usage_hours: 0,
+        status: 'available'
+      };
+      try {
+        const res = await fetch(API_BASE + '/api/inventory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newUnit)
+        });
+        if (res.ok) {
+          appState = await res.json();
+        } else {
+          appState.inventory.push(newUnit);
+        }
+      } catch {
+        appState.inventory.push(newUnit);
+      }
+      e.target.reset();
+      renderAll();
+    });
+
+    // Form 2: Submit Equipment Issue
+    document.getElementById('issueForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newIssue = {
+        issue_id: 'ISS-' + Math.floor(100 + Math.random() * 900),
+        asset_tag: sanitize(document.getElementById('issueAssetTag').value),
+        borrower_name: sanitize(document.getElementById('borrowerName').value),
+        borrower_email: sanitize(document.getElementById('borrowerEmail').value),
+        expected_return_date: document.getElementById('expectedReturn').value,
+        purpose: sanitize(document.getElementById('issuePurpose').value),
+        stage: 1,
+        status_label: 'Requested (33%)'
+      };
+      try {
+        const res = await fetch(API_BASE + '/api/issues', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newIssue)
+        });
+        if (res.ok) appState = await res.json();
+        else appState.issues.unshift(newIssue);
+      } catch {
+        appState.issues.unshift(newIssue);
+      }
+      e.target.reset();
+      renderAll();
+    });
+
+    // Form 3: Create Work Order
+    document.getElementById('woForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newWo = {
+        wo_id: 'WO-' + Math.floor(500 + Math.random() * 499),
+        asset_tag: sanitize(document.getElementById('woAssetTag').value),
+        wo_type: sanitize(document.getElementById('woType').value),
+        assignee: sanitize(document.getElementById('woAssignee').value),
+        service_cost: Number(document.getElementById('woCost').value),
+        remarks: sanitize(document.getElementById('woRemarks').value),
+        stage: 1,
+        wo_status: 'open'
+      };
+      try {
+        const res = await fetch(API_BASE + '/api/workorders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newWo)
+        });
+        if (res.ok) appState = await res.json();
+        else appState.workOrders.unshift(newWo);
+      } catch {
+        appState.workOrders.unshift(newWo);
+      }
+      e.target.reset();
+      renderAll();
+    });
+
+    // Advance Progress Stage (Stage 1 -> 2 -> 3)
+    async function advanceStage(collection, id) {
+      try {
+        const res = await fetch(API_BASE + '/api/advance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collection, id })
+        });
+        if (res.ok) {
+          appState = await res.json();
+          renderAll();
+          return;
+        }
+      } catch {}
+
+      // Local fallback advance
+      if (collection === 'issues') {
+        const item = appState.issues.find(i => i.issue_id === id);
+        if (item && item.stage < 3) {
+          item.stage += 1;
+          const unit = appState.inventory.find(u => u.asset_tag === item.asset_tag);
+          if (unit) unit.status = item.stage === 2 ? 'issued' : 'available';
+        }
+      } else if (collection === 'workorders') {
+        const wo = appState.workOrders.find(w => w.wo_id === id);
+        if (wo && wo.stage < 3) {
+          wo.stage += 1;
+          wo.wo_status = wo.stage === 2 ? 'in progress' : 'completed';
+          const unit = appState.inventory.find(u => u.asset_tag === wo.asset_tag);
+          if (unit) unit.status = wo.stage === 2 ? 'under maintenance' : 'available';
+        }
+      }
+      renderAll();
+    }
+
+    // Admin Login (Unit 6)
+    document.getElementById('adminLoginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('adminEmail').value.trim();
+      const password = document.getElementById('adminPassword').value.trim();
+
+      if (email === 'admin@inst.edu' && password === 'admin123') {
+        isAdmin = true;
+        renderAll();
+        alert('Admin Login Successful. Clear and Delete buttons are now unlocked across all tabs.');
+      } else {
+        alert('Invalid Admin credentials. Use admin@inst.edu / admin123');
+      }
+    });
+
+    function logoutAdmin() {
+      isAdmin = false;
+      renderAll();
+    }
+
+    // Admin Delete Single Item
+    async function deleteItem(collection, id) {
+      if (!isAdmin) return;
+      try {
+        const res = await fetch(API_BASE + '/api/admin/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collection, id })
+        });
+        if (res.ok) {
+          appState = await res.json();
+          renderAll();
+          return;
+        }
+      } catch {}
+
+      if (collection === 'inventory') appState.inventory = appState.inventory.filter(u => u.asset_tag !== id);
+      if (collection === 'issues') appState.issues = appState.issues.filter(i => i.issue_id !== id);
+      if (collection === 'workorders') appState.workOrders = appState.workOrders.filter(w => w.wo_id !== id);
+      renderAll();
+    }
+
+    // Admin Clear Entire Collection
+    async function adminClearCollection(collection) {
+      if (!isAdmin) return;
+      try {
+        const res = await fetch(API_BASE + '/api/admin/clear', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collection })
+        });
+        if (res.ok) {
+          appState = await res.json();
+          renderAll();
+          return;
+        }
+      } catch {}
+
+      if (collection === 'issues') appState.issues = [];
+      if (collection === 'workorders') appState.workOrders = [];
+      renderAll();
+    }
+
+    // Admin Restore Seed Data
+    async function adminResetDemo() {
+      if (!isAdmin) return;
+      try {
+        const res = await fetch(API_BASE + '/api/admin/reset', { method: 'POST' });
+        if (res.ok) {
+          appState = await res.json();
+          renderAll();
+          return;
+        }
+      } catch {}
+      window.location.reload();
+    }
+
+    window.addEventListener('DOMContentLoaded', loadStateFromServer);
+  </script>
+</body>
+</html>
